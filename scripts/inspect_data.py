@@ -15,7 +15,7 @@ for table in tables:
     print(f"{'='*60}")
     count = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
     print(f"  Total rows: {count:,}")
-    print(f"\n  Sample (5 rows):")
+    print("\n  Sample (5 rows):")
     df = con.execute(f"SELECT * FROM {table} LIMIT 5").df()
     print(df.to_string(index=False))
 

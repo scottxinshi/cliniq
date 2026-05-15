@@ -7,7 +7,7 @@ times if the SQL fails or returns empty results.
 """
 
 import os
-from typing import TypedDict, Annotated
+from typing import TypedDict
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -27,7 +27,10 @@ llm = ChatGroq(model=MODEL, temperature=0)
 
 class AgentState(TypedDict):
     question: str           # original user question
+    history: list           # last 3 turns from conversation (same pattern as DataScope)
+    previous_sql: str       # last successful SQL — lets agent resolve "those patients"
     schema_context: str     # relevant table definitions
+    tables_used: list       # which OMOP tables were selected
     sql: str                # generated SQL
     result_df: object       # query result dataframe
     result_str: str         # formatted result string
@@ -42,6 +45,7 @@ def schema_router(state: AgentState) -> AgentState:
     """Select only the relevant OMOP tables for this question."""
     tables = get_relevant_tables(state["question"])
     state["schema_context"] = format_schema_context(tables)
+    state["tables_used"] = list(tables.keys())
     return state
 
 
@@ -61,6 +65,16 @@ Previous SQL:
 Please fix the issue and generate corrected SQL.
 """
 
+    # Include previous SQL so agent can resolve "those patients" follow-ups
+    previous_sql_context = ""
+    if state.get("previous_sql"):
+        previous_sql_context = f"""
+The previous query in this conversation was:
+{state['previous_sql']}
+
+If the user refers to "those patients", "them", or a previously mentioned group, build on this query.
+"""
+
     system_prompt = f"""You are a clinical data analyst expert in OMOP CDM and DuckDB SQL.
 Generate a single, valid DuckDB SQL query to answer the user's question.
 
@@ -74,14 +88,24 @@ Rules:
 - When filtering by concept name, prefer ILIKE with wildcards (e.g. ILIKE '%diabetes%') over exact matches
 - ALWAYS wrap OR conditions in parentheses to avoid operator precedence bugs
 - Do NOT add date overlap conditions unless the question explicitly asks about timing
+- When asked about medications or conditions, ALWAYS aggregate with GROUP BY and ORDER BY count DESC — never return individual rows
+- NEVER estimate, infer, or invent data not present in the query results — if cost or other fields are not in the schema, do not mention them
 
 {state['schema_context']}
+{previous_sql_context}
 {error_context}"""
 
-    response = llm.invoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=state["question"])
-    ])
+    # Build messages — same pattern as DataScope: system + history[-6:] + current question
+    from langchain_core.messages import AIMessage
+    messages = [SystemMessage(content=system_prompt)]
+    for msg in state.get("history", [])[-6:]:   # last 3 turns
+        if msg["role"] == "user":
+            messages.append(HumanMessage(content=msg["content"]))
+        elif msg["role"] == "assistant":
+            messages.append(AIMessage(content=msg["content"]))
+    messages.append(HumanMessage(content=state["question"]))
+
+    response = llm.invoke(messages)
 
     state["sql"] = response.content.strip()
     state["error"] = ""
@@ -110,7 +134,8 @@ def narrator(state: AgentState) -> AgentState:
     """Convert raw query results into a plain-language clinical answer."""
     system_prompt = """You are a clinical data assistant explaining query results to a healthcare professional.
 Convert the data into a clear, concise plain-language answer.
-Include specific numbers. Be direct. No filler phrases."""
+Include specific numbers. Be direct. No filler phrases.
+CRITICAL: Only describe what is in the query results. Never estimate, infer, or add information not present in the data — especially costs, prices, or clinical recommendations."""
 
     prompt = f"""Question: {state['question']}
 
@@ -183,11 +208,20 @@ def build_graph():
 agent = build_graph()
 
 
-def ask(question: str) -> dict:
-    """Run the ClinIQ agent on a plain-language question."""
+def ask(question: str, history: list = None, previous_sql: str = "") -> dict:
+    """Run the ClinIQ agent on a plain-language question.
+
+    Args:
+        question: the user's natural language question
+        history: last N conversation messages (same format as DataScope: list of role/content dicts)
+        previous_sql: the last successful SQL query for follow-up context
+    """
     result = agent.invoke({
         "question": question,
+        "history": history or [],
+        "previous_sql": previous_sql,
         "schema_context": "",
+        "tables_used": [],
         "sql": "",
         "result_df": None,
         "result_str": "",
