@@ -70,6 +70,10 @@ Rules:
 - Return only the SQL query, no explanation, no markdown, no backticks
 - Use DuckDB syntax (e.g. DATE_DIFF for date math)
 - Limit results to 100 rows unless counting or aggregating
+- ALWAYS use ILIKE instead of LIKE for string matching — concept names may be mixed case
+- When filtering by concept name, prefer ILIKE with wildcards (e.g. ILIKE '%diabetes%') over exact matches
+- ALWAYS wrap OR conditions in parentheses to avoid operator precedence bugs
+- Do NOT add date overlap conditions unless the question explicitly asks about timing
 
 {state['schema_context']}
 {error_context}"""
