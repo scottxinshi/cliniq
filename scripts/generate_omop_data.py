@@ -15,9 +15,7 @@ random.seed(42)
 Faker.seed(42)
 
 DB_PATH = "data/omop.duckdb"
-N_PATIENTS = 1000  # Start with 1k, scale to 10k later
-
-# ── OMOP concept stubs (concept_id → name) ─────────────────────────────────
+N_PATIENTS = 5000
 
 GENDERS = {8507: "MALE", 8532: "FEMALE"}
 
@@ -38,20 +36,37 @@ CONDITIONS = {
     436670: "Atrial fibrillation",
     4185932: "Asthma",
     380378: "Heart failure",
+    4313290: "Allergic rhinitis due to pollen",
+    379019:  "Atopic conjunctivitis",
+    375545:  "Seasonal allergic rhinitis",
+    4227006: "Blurred vision",
 }
 
+PEDIATRIC_CONDITIONS = {4313290, 379019, 375545, 4185932}
+ALLERGY_CONDITIONS   = {4313290, 379019, 375545}
+
 DRUGS = {
-    1503297: "Metformin 500 MG Oral Tablet",
-    1124957: "Lisinopril 10 MG Oral Tablet",
-    1307046: "Atorvastatin 20 MG Oral Tablet",
-    1118084: "Aspirin 81 MG Oral Tablet",
-    1301025: "Amlodipine 5 MG Oral Tablet",
-    1308216: "Losartan 50 MG Oral Tablet",
+    1503297:  "Metformin 500 MG Oral Tablet",
+    1124957:  "Lisinopril 10 MG Oral Tablet",
+    1307046:  "Atorvastatin 20 MG Oral Tablet",
+    1118084:  "Aspirin 81 MG Oral Tablet",
+    1301025:  "Amlodipine 5 MG Oral Tablet",
+    1308216:  "Losartan 50 MG Oral Tablet",
     19078461: "Omeprazole 20 MG Oral Capsule",
-    1154343: "Albuterol 0.083 MG/ML Inhalant Solution",
-    1326012: "Furosemide 40 MG Oral Tablet",
+    1154343:  "Albuterol 0.083 MG/ML Inhalant Solution",
+    1326012:  "Furosemide 40 MG Oral Tablet",
     40163554: "Warfarin 5 MG Oral Tablet",
 }
+
+ALLERGY_DRUGS = {
+    19011773: "Cetirizine 10 MG Oral Tablet",
+    1140088:  "Loratadine 10 MG Oral Tablet",
+    1154161:  "Montelukast 10 MG Oral Tablet",
+    1150771:  "Fluticasone propionate 0.05 MG/ACTUAT Nasal Spray",
+    19135843: "Fexofenadine 180 MG Oral Tablet",
+}
+
+ALL_DRUGS = {**DRUGS, **ALLERGY_DRUGS}
 
 MEASUREMENTS = {
     3004249: ("Systolic blood pressure", 90, 180, "mmHg"),
@@ -73,8 +88,6 @@ VISIT_TYPES = {
 }
 
 
-# ── Schema creation ─────────────────────────────────────────────────────────
-
 def create_schema(con):
     con.execute("""
         CREATE TABLE IF NOT EXISTS person (
@@ -88,7 +101,6 @@ def create_schema(con):
             person_source_value VARCHAR
         )
     """)
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS visit_occurrence (
             visit_occurrence_id INTEGER PRIMARY KEY,
@@ -99,7 +111,6 @@ def create_schema(con):
             visit_type_concept_id INTEGER
         )
     """)
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS condition_occurrence (
             condition_occurrence_id INTEGER PRIMARY KEY,
@@ -111,7 +122,6 @@ def create_schema(con):
             condition_source_value VARCHAR
         )
     """)
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS drug_exposure (
             drug_exposure_id INTEGER PRIMARY KEY,
@@ -124,7 +134,6 @@ def create_schema(con):
             drug_source_value VARCHAR
         )
     """)
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS measurement (
             measurement_id INTEGER PRIMARY KEY,
@@ -136,7 +145,6 @@ def create_schema(con):
             visit_occurrence_id INTEGER
         )
     """)
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS procedure_occurrence (
             procedure_occurrence_id INTEGER PRIMARY KEY,
@@ -147,7 +155,6 @@ def create_schema(con):
             procedure_source_value VARCHAR
         )
     """)
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS concept (
             concept_id INTEGER PRIMARY KEY,
@@ -158,8 +165,6 @@ def create_schema(con):
     """)
 
 
-# ── Concept vocabulary ──────────────────────────────────────────────────────
-
 def populate_concepts(con):
     rows = []
     for cid, name in GENDERS.items():
@@ -168,18 +173,14 @@ def populate_concepts(con):
         rows.append((cid, name, "Race", "Race"))
     for cid, name in CONDITIONS.items():
         rows.append((cid, name, "Condition", "SNOMED"))
-    for cid, name in DRUGS.items():
+    for cid, name in ALL_DRUGS.items():
         rows.append((cid, name, "Drug", "RxNorm"))
     for cid, (name, *_) in MEASUREMENTS.items():
         rows.append((cid, name, "Measurement", "LOINC"))
     for cid, name in VISIT_TYPES.items():
         rows.append((cid, name, "Visit", "Visit"))
-    con.executemany(
-        "INSERT OR IGNORE INTO concept VALUES (?, ?, ?, ?)", rows
-    )
+    con.executemany("INSERT OR IGNORE INTO concept VALUES (?, ?, ?, ?)", rows)
 
-
-# ── Data generation ─────────────────────────────────────────────────────────
 
 def random_date(start_year=2015, end_year=2024):
     start = date(start_year, 1, 1)
@@ -190,7 +191,10 @@ def random_date(start_year=2015, end_year=2024):
 def generate_patients(n):
     patients = []
     for i in range(1, n + 1):
-        dob = fake.date_of_birth(minimum_age=18, maximum_age=90)
+        if random.random() < 0.15:
+            dob = fake.date_of_birth(minimum_age=5, maximum_age=17)
+        else:
+            dob = fake.date_of_birth(minimum_age=18, maximum_age=90)
         gender_id = random.choice(list(GENDERS.keys()))
         race_id = random.choice(list(RACES.keys()))
         patients.append((
@@ -220,10 +224,22 @@ def generate_visits(patients):
 def generate_conditions(patients, patient_visits):
     rows = []
     cid = 1
-    condition_list = list(CONDITIONS.keys())
-    for (pid, *_) in patients:
-        n_conditions = random.randint(0, 4)
-        chosen = random.sample(condition_list, min(n_conditions, len(condition_list)))
+    all_conditions = list(CONDITIONS.keys())
+    adult_conditions = [c for c in all_conditions if c not in PEDIATRIC_CONDITIONS]
+    pediatric_conditions = list(PEDIATRIC_CONDITIONS)
+    for (pid, gender_id, year_of_birth, *_) in patients:
+        age = 2026 - year_of_birth
+        is_child = age < 18
+        if is_child:
+            n_conditions = random.randint(1, 3)
+            pool = pediatric_conditions + random.sample(adult_conditions, 2)
+            chosen = random.sample(pool, min(n_conditions, len(pool)))
+        else:
+            n_conditions = random.randint(0, 4)
+            pool = adult_conditions
+            if random.random() < 0.2:
+                pool = pool + pediatric_conditions
+            chosen = random.sample(pool, min(n_conditions, len(pool)))
         for concept_id in chosen:
             start = random_date()
             vid = random.choice(patient_visits[pid])[0] if patient_visits[pid] else None
@@ -236,13 +252,31 @@ def generate_conditions(patients, patient_visits):
     return rows
 
 
-def generate_drugs(patients, patient_visits):
+def generate_drugs(patients, patient_visits, condition_rows):
+    allergy_patient_ids = {
+        row[1] for row in condition_rows if row[2] in ALLERGY_CONDITIONS
+    }
+    asthma_patient_ids = {
+        row[1] for row in condition_rows if row[2] == 4185932
+    }
     rows = []
     did = 1
-    drug_list = list(DRUGS.keys())
+    general_drug_list = list(DRUGS.keys())
+    allergy_drug_list = list(ALLERGY_DRUGS.keys())
     for (pid, *_) in patients:
-        n_drugs = random.randint(0, 5)
-        chosen = random.sample(drug_list, min(n_drugs, len(drug_list)))
+        chosen = []
+        if pid in allergy_patient_ids:
+            n_allergy = random.randint(2, min(4, len(allergy_drug_list)))
+            chosen += random.sample(allergy_drug_list, n_allergy)
+            n_general = random.randint(0, 2)
+            chosen += random.sample(general_drug_list, n_general)
+        elif pid in asthma_patient_ids:
+            chosen.append(1154343)
+            n_other = random.randint(0, 3)
+            chosen += random.sample(general_drug_list, n_other)
+        else:
+            n_drugs = random.randint(0, 5)
+            chosen = random.sample(general_drug_list, min(n_drugs, len(general_drug_list)))
         for concept_id in chosen:
             start = random_date()
             vid = random.choice(patient_visits[pid])[0] if patient_visits[pid] else None
@@ -250,7 +284,7 @@ def generate_drugs(patients, patient_visits):
                 did, pid, concept_id, start,
                 start + timedelta(days=random.randint(30, 365)),
                 random.randint(1, 3) * 30.0,
-                vid, DRUGS[concept_id]
+                vid, ALL_DRUGS[concept_id]
             ))
             did += 1
     return rows
@@ -273,11 +307,13 @@ def generate_measurements(patients, patient_visits):
     return rows
 
 
-# ── Main ────────────────────────────────────────────────────────────────────
-
 def main():
     import os
     os.makedirs("data", exist_ok=True)
+
+    if os.path.exists(DB_PATH):
+        os.remove(DB_PATH)
+        print(f"Removed existing database at {DB_PATH}")
 
     print(f"Connecting to DuckDB at {DB_PATH}...")
     con = duckdb.connect(DB_PATH)
@@ -298,15 +334,15 @@ def main():
     conditions = generate_conditions(patients, patient_visits)
     con.executemany("INSERT INTO condition_occurrence VALUES (?,?,?,?,?,?,?)", conditions)
 
-    print("Generating drug exposures...")
-    drugs = generate_drugs(patients, patient_visits)
+    print("Generating drug exposures (allergy-aware)...")
+    drugs = generate_drugs(patients, patient_visits, conditions)
     con.executemany("INSERT INTO drug_exposure VALUES (?,?,?,?,?,?,?,?)", drugs)
 
     print("Generating measurements...")
     measurements = generate_measurements(patients, patient_visits)
     con.executemany("INSERT INTO measurement VALUES (?,?,?,?,?,?,?)", measurements)
 
-    print("\n✓ Done. Row counts:")
+    print("\n Done. Row counts:")
     for table in ["person", "visit_occurrence", "condition_occurrence",
                   "drug_exposure", "measurement", "concept"]:
         count = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
