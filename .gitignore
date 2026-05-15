@@ -1,0 +1,22 @@
+# Environment
+.env
+
+# Database
+data/omop.duckdb
+data/omop.duckdb.wal
+data/raw/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
