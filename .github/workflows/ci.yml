@@ -1,0 +1,47 @@
+name: ClinIQ CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate OMOP database
+        run: python scripts/generate_omop_data.py
+
+      - name: Verify database was created
+        run: |
+          python -c "
+          import duckdb
+          con = duckdb.connect('data/omop.duckdb', read_only=True)
+          n = con.execute('SELECT COUNT(*) FROM person').fetchone()[0]
+          print(f'Patients in DB: {n}')
+          assert n == 5000, f'Expected 5000 patients, got {n}'
+          tables = ['person','condition_occurrence','drug_exposure','measurement','concept']
+          for t in tables:
+              c = con.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
+              print(f'  {t}: {c:,} rows')
+          con.close()
+          print('DB check passed')
+          "
+
+      - name: Lint with ruff
+        run: |
+          pip install ruff
+          ruff check . --ignore E501
