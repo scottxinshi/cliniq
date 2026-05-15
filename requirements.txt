@@ -1,0 +1,15 @@
+duckdb==1.5.2
+langchain-core==1.4.0
+langchain-groq==1.1.2
+langgraph==1.2.0
+langgraph-checkpoint==4.1.0
+langgraph-prebuilt==1.1.0
+chromadb==1.5.9
+fastapi==0.136.1
+uvicorn==0.47.0
+streamlit==1.57.0
+faker==40.18.0
+pandas==2.3.3
+python-dotenv==1.2.2
+groq==0.37.1
+langsmith==0.8.4
