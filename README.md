@@ -15,7 +15,7 @@
 | v2 | Added ILIKE rule | 80% (8/10) |
 | v3 | Added OR parentheses + no-date rule | **100% (10/10)** |
 
-10 curated clinical questions scored against ground truth SQL across three difficulty levels.
+25 curated clinical questions scored against ground truth SQL across three difficulty levels.
 Each improvement was driven by a specific failure the benchmark caught — not guesswork.
 
 ---
@@ -87,11 +87,10 @@ Answer + SQL + Tables Used
 | Orchestration | LangGraph |
 | LLM | Groq — Llama 3.3 70B |
 | Database | DuckDB + OMOP CDM schema |
-| Vector store | ChromaDB (schema embeddings) |
-| Data | Synthea synthetic patients (5,000) |
-| API | FastAPI |
+| Data | Synthetic patients (5,000) — OMOP-compatible |
 | Frontend | Streamlit |
 | Containers | Docker |
+| CI | GitHub Actions |
 
 Same stack as DataScope. The domain and the engineering depth are what's new.
 
@@ -150,7 +149,7 @@ docker-compose up
 python eval/benchmark.py
 ```
 
-Runs 10 clinical questions through the agent and scores each against ground truth SQL.
+Runs 25 clinical questions through the agent and scores each against ground truth SQL.
 Results show pass/fail per question, retry count, and overall accuracy by difficulty.
 
 ---

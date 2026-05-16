@@ -6,11 +6,19 @@ Run from the cliniq/ folder: python run.py
 from agent.graph import ask
 
 TEST_QUESTIONS = [
-    "How many patients are in the database?",
-    "What are the most common conditions diagnosed?",
-    "Which medications are most frequently prescribed?",
-    "How many patients have been diagnosed with diabetes?",
-    "What is the average glucose measurement across all patients?",
+    # Multi-table — clinical story (son's visit)
+    "How many patients between age 8 and 12 have been diagnosed with pollen allergies or conjunctivitis?",
+    "What medications are most commonly prescribed to children under 12 with pollen allergies?",
+    "How many children with pollen allergies also have asthma?",
+
+    # Multi-table — adult pivot (Scott's diagnosis)
+    "How many adult patients over 30 have both allergic rhinitis and blurred vision?",
+    "What medications are most commonly prescribed to those patients?",
+
+    # Complex joins
+    "What medications are most commonly prescribed to diabetic patients over 65?",
+    "How many patients have been diagnosed with both diabetes and hypertensive disorder?",
+    "How many patients had an emergency room visit in the last 2 years?",
 ]
 
 if __name__ == "__main__":
@@ -24,4 +32,6 @@ if __name__ == "__main__":
         result = ask(question)
         print(f"SQL:\n{result['sql']}\n")
         print(f"Answer: {result['answer']}")
+        if result.get("retries", 0) > 0:
+            print(f"Retries: {result['retries']}")
         print("="*60)

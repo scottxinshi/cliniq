@@ -110,6 +110,17 @@ ROUTING_RULES = {
 # Always include concept — it's the lookup table for human-readable names
 ALWAYS_INCLUDE = {"concept"}
 
+# Human-readable reason for each table selection — shown in the UI
+TABLE_REASONS = {
+    "person":               "Contains patient demographics (age, gender, race)",
+    "visit_occurrence":     "Contains hospital and clinic visit records",
+    "condition_occurrence": "Contains diagnoses and medical conditions",
+    "drug_exposure":        "Contains medication and prescription records",
+    "measurement":          "Contains lab results and vital signs",
+    "procedure_occurrence": "Contains medical procedures performed",
+    "concept":              "Lookup table — maps IDs to human-readable names (SNOMED, RxNorm, LOINC)",
+}
+
 
 def get_relevant_tables(question: str) -> dict[str, str]:
     """

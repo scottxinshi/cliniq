@@ -1,0 +1,10 @@
+venv/
+.venv/
+.env
+data/omop.duckdb
+data/omop.duckdb.wal
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore

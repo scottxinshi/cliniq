@@ -1,0 +1,11 @@
+services:
+  cliniq:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      - .:/app  # syncs local files with the container
