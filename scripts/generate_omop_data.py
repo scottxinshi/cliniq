@@ -98,7 +98,12 @@ def create_schema(con):
             day_of_birth INTEGER,
             race_concept_id INTEGER,
             ethnicity_concept_id INTEGER,
-            person_source_value VARCHAR
+            person_source_value VARCHAR,
+            first_name VARCHAR,
+            last_name VARCHAR,
+            phone VARCHAR,
+            email VARCHAR,
+            address VARCHAR
         )
     """)
     con.execute("""
@@ -197,9 +202,15 @@ def generate_patients(n):
             dob = fake.date_of_birth(minimum_age=18, maximum_age=90)
         gender_id = random.choice(list(GENDERS.keys()))
         race_id = random.choice(list(RACES.keys()))
+        first_name = fake.first_name()
+        last_name = fake.last_name()
+        phone = fake.phone_number()
+        email = f"{first_name.lower()}.{last_name.lower()}{random.randint(1,99)}@{fake.free_email_domain()}"
+        address = fake.address().replace("\n", ", ")
         patients.append((
             i, gender_id, dob.year, dob.month, dob.day,
-            race_id, 0, str(uuid.uuid4())
+            race_id, 0, str(uuid.uuid4()),
+            first_name, last_name, phone, email, address
         ))
     return patients
 
@@ -324,7 +335,7 @@ def main():
 
     print(f"Generating {N_PATIENTS} synthetic patients...")
     patients = generate_patients(N_PATIENTS)
-    con.executemany("INSERT INTO person VALUES (?,?,?,?,?,?,?,?)", patients)
+    con.executemany("INSERT INTO person VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", patients)
 
     print("Generating visits...")
     visits, patient_visits = generate_visits(patients)

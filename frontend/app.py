@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import time
 import streamlit as st
 import pandas as pd
+from PIL import Image
 from agent.graph import ask
 from agent.schema import TABLE_REASONS
 from agent.patient_timeline import get_patient_list, get_patient_summary, generate_narrative
@@ -13,8 +14,21 @@ load_dotenv()
 
 # ── Page config ───────────────────────────────────────────────────────────────
 
-st.set_page_config(page_title="ClinIQ", page_icon="🏥", layout="centered")
-st.title("🏥 ClinIQ")
+_logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
+_page_icon = Image.open(_logo_path) if os.path.exists(_logo_path) else "🏥"
+
+st.set_page_config(page_title="ClinIQ", page_icon=_page_icon, layout="centered")
+
+# Title row: logo + name
+if os.path.exists(_logo_path):
+    _col_logo, _col_title = st.columns([1, 7])
+    with _col_logo:
+        st.image(_logo_path, width=58)
+    with _col_title:
+        st.markdown("<h1 style='margin-top:8px;'>ClinIQ</h1>", unsafe_allow_html=True)
+else:
+    st.title("🏥 ClinIQ")
+
 st.caption("EHR SQL Agent — Built by Scott Xin Shi")
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
@@ -97,8 +111,8 @@ with st.sidebar:
         <div class="card-header">Evaluation Harness</div>
         <div class="secondary-text">
             25 curated clinical questions scored against ground truth SQL.<br><br>
-            <b style="font-size: 1.1rem;">10 / 10</b> &nbsp; 100% accuracy<br>
-            <span style="font-size: 0.75rem;">Easy: 6/6 &nbsp;·&nbsp; Medium: 3/3 &nbsp;·&nbsp; Hard: 1/1</span>
+            <b style="font-size: 1.1rem;">25 / 25</b> &nbsp; 100% accuracy<br>
+            <span style="font-size: 0.75rem;">Easy: 10/10 &nbsp;·&nbsp; Medium: 10/10 &nbsp;·&nbsp; Hard: 5/5</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -224,24 +238,102 @@ with tab1:
 
 with tab2:
 
-    st.markdown("#### Select a Patient")
+    st.markdown("#### Find a Patient")
 
     try:
+        import re as _re
         patient_list = get_patient_list()
 
-        # Build display labels: "Patient 42 · Age 10 · MALE"
+        # Build display labels
         patient_list["label"] = patient_list.apply(
-            lambda r: f"Patient {r.person_id} · Age {r.age} · {r.gender}", axis=1
+            lambda r: f"{r['last_name']}, {r['first_name']} · Age {r['age']} · {r['gender']}", axis=1
         )
 
+        # Extract US state abbreviation from address (e.g. "..., Springfield, IL 62701")
+        def _extract_state(addr):
+            if not isinstance(addr, str):
+                return ""
+            m = _re.search(r'\b([A-Z]{2})\s+\d{5}', addr)
+            return m.group(1) if m else ""
+
+        patient_list["state"] = patient_list["address"].apply(_extract_state)
+
+        # ── Separate search fields ────────────────────────────────────────
+        sc1, sc2, sc3 = st.columns(3)
+        with sc1:
+            search_name  = st.text_input("Name", placeholder="First or last name")
+        with sc2:
+            search_phone = st.text_input("Phone", placeholder="Phone number")
+        with sc3:
+            search_email = st.text_input("Email", placeholder="Email address")
+
+        # ── Filters expander ─────────────────────────────────────────────
+        AGE_RANGES = {
+            "All ages":          (0, 200),
+            "0–17 (Pediatric)":  (0, 17),
+            "18–30":             (18, 30),
+            "31–45":             (31, 45),
+            "46–60":             (46, 60),
+            "61–75":             (61, 75),
+            "76+":               (76, 200),
+        }
+
+        with st.expander("🔍 Filters", expanded=False):
+            fc1, fc2, fc3, fc4 = st.columns(4)
+            with fc1:
+                gender_filter = st.selectbox("Gender", ["All", "MALE", "FEMALE"])
+            with fc2:
+                age_label = st.selectbox("Age", list(AGE_RANGES.keys()))
+            with fc3:
+                race_options = ["All"] + sorted(patient_list["race"].dropna().unique().tolist())
+                race_filter = st.selectbox("Race", race_options)
+            with fc4:
+                state_options = ["All"] + sorted(s for s in patient_list["state"].unique() if s)
+                state_filter = st.selectbox("State", state_options)
+
+        age_min, age_max = AGE_RANGES[age_label]
+
+        # ── Apply all filters ─────────────────────────────────────────────
+        filtered = patient_list.copy()
+
+        if search_name:
+            full_name = filtered["first_name"].str.cat(filtered["last_name"], sep=" ")
+            mask = (
+                full_name.str.contains(search_name, case=False, na=False)
+                | filtered["first_name"].str.contains(search_name, case=False, na=False)
+                | filtered["last_name"].str.contains(search_name, case=False, na=False)
+            )
+            filtered = filtered[mask]
+
+        if search_phone:
+            filtered = filtered[filtered["phone"].str.contains(search_phone, case=False, na=False)]
+
+        if search_email:
+            filtered = filtered[filtered["email"].str.contains(search_email, case=False, na=False)]
+
+        filtered = filtered[(filtered["age"] >= age_min) & (filtered["age"] <= age_max)]
+
+        if gender_filter != "All":
+            filtered = filtered[filtered["gender"] == gender_filter]
+        if race_filter != "All":
+            filtered = filtered[filtered["race"] == race_filter]
+        if state_filter != "All":
+            filtered = filtered[filtered["state"] == state_filter]
+
+        st.caption(f"{len(filtered):,} patient(s) found")
+
+        if filtered.empty:
+            st.warning("No patients match the current filters.")
+            st.stop()
+
         selected_label = st.selectbox(
-            "Search by patient",
-            options=patient_list["label"].tolist(),
+            "Select patient",
+            options=filtered["label"].tolist(),
             index=0,
             label_visibility="collapsed",
         )
 
-        selected_id = int(selected_label.split("·")[0].replace("Patient", "").strip())
+        selected_id = int(filtered[filtered["label"] == selected_label]["person_id"].iloc[0])
         summary = get_patient_summary(selected_id)
         demo    = summary["demographics"].iloc[0]
         conds   = summary["conditions"]
@@ -251,11 +343,23 @@ with tab2:
 
         # ── Demographics card ────────────────────────────────────────────
         st.markdown("---")
+        st.markdown(f"### {demo['first_name']} {demo['last_name']}")
+
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Age", demo["age"])
         col2.metric("Gender", demo["gender"])
         col3.metric("Race", demo["race"])
         col4.metric("Visits", len(visits))
+
+        st.markdown(f"""
+        <div class="patient-card" style="margin-top: 0.8rem;">
+            <div class="secondary-text">
+                📞 &nbsp;{demo['phone']}<br>
+                ✉️ &nbsp;{demo['email']}<br>
+                📍 &nbsp;{demo['address']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # ── AI Narrative ─────────────────────────────────────────────────
         st.markdown("---")

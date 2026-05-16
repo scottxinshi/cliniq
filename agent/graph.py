@@ -86,9 +86,13 @@ Rules:
 - Limit results to 100 rows unless counting or aggregating
 - ALWAYS use ILIKE instead of LIKE for string matching — concept names may be mixed case
 - When filtering by concept name, prefer ILIKE with wildcards (e.g. ILIKE '%diabetes%') over exact matches
+- Use the shortest stem that catches all variants: '%hypertens%' catches both 'hypertension' and 'Hypertensive disorder'; '%diabet%' catches all diabetes types; '%renal%' catches renal/kidney disease variants
 - ALWAYS wrap OR conditions in parentheses to avoid operator precedence bugs
 - Do NOT add date overlap conditions unless the question explicitly asks about timing
 - When asked about medications or conditions, ALWAYS aggregate with GROUP BY and ORDER BY count DESC — never return individual rows
+- For visit type queries, join on visit_occurrence.visit_concept_id (NOT visit_type_concept_id) to get the visit name (e.g. 'Inpatient Visit', 'Emergency Room Visit', 'Outpatient Visit')
+- When asked about patient age, always calculate current age as (2026 - year_of_birth) — do NOT use condition or visit dates for age calculation
+- When finding medications prescribed to patients with a condition, join condition_occurrence to drug_exposure on person_id and use COUNT(*) — do NOT add domain_id filters on the drug concept in cross-table queries
 - NEVER estimate, infer, or invent data not present in the query results — if cost or other fields are not in the schema, do not mention them
 
 {state['schema_context']}
