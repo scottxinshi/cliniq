@@ -362,7 +362,6 @@ with tab2:
 
         # ── AI Narrative ─────────────────────────────────────────────────
         st.markdown("---")
-        st.markdown("#### Clinical Summary")
 
         if "narrative_id" not in st.session_state or st.session_state.narrative_id != selected_id:
             with st.spinner("Generating clinical summary..."):
@@ -377,7 +376,10 @@ with tab2:
                         st.session_state.narrative_text = f"Could not generate narrative: {str(e)}"
 
         st.markdown(
-            f"<div class='narrative-box'>{st.session_state.get('narrative_text', '')}</div>",
+            f"<div class='narrative-box'>"
+            f"<div style='color:#0A84FF; font-weight:600; font-size:1rem; margin-bottom:0.6rem;'>Clinical Summary</div>"
+            f"{st.session_state.get('narrative_text', '')}"
+            f"</div>",
             unsafe_allow_html=True,
         )
 

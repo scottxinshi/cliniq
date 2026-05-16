@@ -13,8 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the project
 COPY . .
 
-# Generate OMOP database if it doesn't exist
-RUN python scripts/generate_omop_data.py
+# Generate OMOP database
+RUN mkdir -p data && python scripts/generate_omop_data.py
 
 # Expose Streamlit port
 EXPOSE 8501
