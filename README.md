@@ -13,7 +13,8 @@
 |---|---|---|
 | Baseline | No prompt improvements | 40% (4/10) |
 | v2 | Added ILIKE rule | 80% (8/10) |
-| v3 | Added OR parentheses + no-date rule | **100% (10/10)** |
+| v3 | Added OR parentheses + no-date rule | 100% (10/10) |
+| v4 | Expanded to 25 questions; added stem matching, visit/age/join rules | **100% (25/25)** |
 
 25 curated clinical questions scored against ground truth SQL across three difficulty levels.
 Each improvement was driven by a specific failure the benchmark caught — not guesswork.
@@ -22,16 +23,29 @@ Each improvement was driven by a specific failure the benchmark caught — not g
 
 ## What It Does
 
-ClinIQ lets clinicians ask questions about patient records in plain English:
+ClinIQ has two modes:
+
+### Tab 1 — Population Query
+Ask plain English questions about your patient population. The agent shows its work at every step.
 
 ```
-"How many patients between age 8 and 12 have been diagnosed with pollen allergies?"
-"What medications are most commonly prescribed to diabetic patients over 65?"
-"How many patients have been diagnosed with both diabetes and hypertensive disorder?"
+"How many patients have been diagnosed with both diabetes and hypertension?"
+"What medications are most commonly prescribed to diabetic patients?"
+"How many patients had an emergency room visit?"
 ```
 
-The agent translates each question into SQL, runs it against a DuckDB database using the
-OMOP CDM schema, self-corrects if the query fails, and narrates the result in plain language.
+The agent translates each question into SQL, runs it against a DuckDB OMOP database,
+self-corrects if the query fails, and narrates the result in plain language. Each response
+shows which OMOP tables were selected and the SQL that was generated — no black box.
+
+### Tab 2 — Patient Timeline
+Pull up any individual patient's full clinical record in one view.
+
+- **Search** by name, phone number, or email address
+- **Filter** by gender, age range, race, or US state
+- **See at a glance:** AI-generated clinical summary, active conditions with diagnosis dates,
+  current medications, full visit history, and recent lab results (glucose, blood pressure,
+  A1c, kidney function, and more)
 
 ---
 
@@ -48,6 +62,8 @@ ClinIQ demonstrates depth:
 ---
 
 ## Architecture
+
+### Agent Pipeline (Tab 1)
 
 ```
 User Question
@@ -68,6 +84,21 @@ Narrator               ← converts result to plain clinical language
      │
      ▼
 Answer + SQL + Tables Used
+```
+
+### Patient Timeline (Tab 2)
+
+```
+Patient Search / Filters
+     │
+     ▼
+DuckDB OMOP Queries    ← demographics, conditions, medications, visits, measurements
+     │
+     ▼
+Groq LLM Narrator      ← generates 3-5 sentence clinical summary
+     │
+     ▼
+Full Patient View
 ```
 
 **Three depth features:**
@@ -106,7 +137,7 @@ Key tables used in this project:
 
 | Table | Contents |
 |---|---|
-| `person` | Patient demographics |
+| `person` | Patient demographics (name, age, gender, race, contact info) |
 | `condition_occurrence` | Diagnoses (SNOMED codes) |
 | `drug_exposure` | Medications (RxNorm codes) |
 | `visit_occurrence` | Hospital and clinic visits |
@@ -152,14 +183,25 @@ python eval/benchmark.py
 Runs 25 clinical questions through the agent and scores each against ground truth SQL.
 Results show pass/fail per question, retry count, and overall accuracy by difficulty.
 
+| Difficulty | Count | Score |
+|---|---|---|
+| Easy | 10 | 10/10 |
+| Medium | 10 | 10/10 |
+| Hard | 5 | 5/5 |
+| **Total** | **25** | **25/25** |
+
 ---
 
 ## Data
 
-5,000 synthetic patients generated using the OMOP CDM schema. Conditions include:
-- Type 2 diabetes mellitus, Hypertensive disorder, Asthma, Heart failure
-- Allergic rhinitis due to pollen, Atopic conjunctivitis, Blurred vision
-- Atrial fibrillation, Chronic renal disease, Malignant neoplastic disease
+5,000 synthetic patients generated using Python's Faker library and the OMOP CDM schema.
+
+Conditions include: Type 2 diabetes mellitus, Hypertensive disorder, Asthma, Heart failure,
+Allergic rhinitis due to pollen, Atopic conjunctivitis, Atrial fibrillation, Chronic renal
+disease, Coronary arteriosclerosis, Malignant neoplastic disease.
+
+Drug assignment is condition-aware — allergy patients receive allergy medications,
+asthma patients receive inhalers.
 
 No real patient data. No PHI. Safe for portfolio, demo, and public GitHub.
 

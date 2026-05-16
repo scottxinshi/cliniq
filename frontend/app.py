@@ -29,7 +29,6 @@ if os.path.exists(_logo_path):
 else:
     st.title("🏥 ClinIQ")
 
-st.caption("EHR SQL Agent — Built by Scott Xin Shi")
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 
@@ -80,7 +79,7 @@ st.markdown("""
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.markdown("### 👋 About")
+    st.markdown("### About")
 
     st.markdown("""
     <div class="sidebar-card">
@@ -363,7 +362,7 @@ with tab2:
 
         # ── AI Narrative ─────────────────────────────────────────────────
         st.markdown("---")
-        st.markdown("#### 🩺 Clinical Summary")
+        st.markdown("#### Clinical Summary")
 
         if "narrative_id" not in st.session_state or st.session_state.narrative_id != selected_id:
             with st.spinner("Generating clinical summary..."):
@@ -423,7 +422,7 @@ with tab2:
         # ── Measurements ─────────────────────────────────────────────────
         if not measurs.empty:
             st.markdown("---")
-            st.markdown("#### 🔬 Recent Measurements")
+            st.markdown("#### Recent Measurements")
             st.dataframe(measurs, use_container_width=True, hide_index=True)
 
     except Exception as e:
